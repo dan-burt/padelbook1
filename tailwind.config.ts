@@ -12,6 +12,12 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      fontFamily: {
+        'press-start': ['var(--font-press-start-2p)', 'monospace'],
+      },
+      scale: {
+        '102': '1.02',
+      },
     },
   },
   plugins: [],

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Database } from '@/lib/database.types';
 import { Switch } from '@headlessui/react';
 import toast from 'react-hot-toast';
+import CourtGraphic from './CourtGraphic';
 
 type Player = Database['public']['Tables']['players']['Row'];
 type Court = Database['public']['Tables']['courts']['Row'];
@@ -358,8 +359,26 @@ export default function BookingForm() {
   };
 
   return (
-    <div className="relative max-w-6xl mx-auto p-6">
-      {/* Remove Navigation Bars */}
+    <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
+      {/* Navigation Bars */}
+      <button
+        onClick={handlePrevDay}
+        className="fixed left-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
+        style={{ clipPath: 'polygon(0 0, 50% 0, 100% 100%, 0 100%)' }}
+        data-testid="prev-day-button"
+      >
+        <span className="sr-only">Previous Day</span>
+        <div className="w-8 h-8 border-l-4 border-t-4 border-white transform -rotate-45 ml-8"></div>
+      </button>
+
+      <button
+        onClick={handleNextDay}
+        className="fixed right-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
+        style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 0 100%)' }}
+      >
+        <span className="sr-only">Next Day</span>
+        <div className="w-8 h-8 border-r-4 border-t-4 border-white transform rotate-45 mr-8"></div>
+      </button>
 
       {/* Loading Overlay */}
       {isLoading && (
@@ -372,11 +391,12 @@ export default function BookingForm() {
         <button
           onClick={handleNewDay}
           className="px-6 py-4 border-2 border-black text-xl font-semibold hover:bg-gray-100 shrink-0"
+          data-testid="new-day-button"
         >
           New Day
         </button>
 
-        <div className="border-2 border-black shrink-0">
+        <div className="border-2 border-black shrink-0" data-testid="date-picker-container">
           <DatePicker
             selected={date}
             onChange={(date: Date | null) => date && setDate(date)}
@@ -385,7 +405,7 @@ export default function BookingForm() {
           />
         </div>
 
-        <div className="flex-1 border-2 border-black p-4 min-h-[320px]">
+        <div className="flex-1 border-2 border-black p-4 min-h-[320px]" data-testid="time-slots-container">
           <h3 className="text-xl font-semibold mb-4">Available Time Slots</h3>
           <div className="grid grid-cols-4 gap-2">
             {TIME_SLOTS.map((slot) => (
@@ -397,6 +417,7 @@ export default function BookingForm() {
                     ? 'bg-blue-200' 
                     : 'hover:bg-gray-100'
                 }`}
+                data-testid={`time-slot-${slot.value}`}
               >
                 {slot.label}
               </button>
@@ -406,7 +427,7 @@ export default function BookingForm() {
       </div>
 
       <div className="mb-8">
-        <div className="px-6 py-4 border-2 border-black flex-grow">
+        <div className="px-6 py-4 border-2 border-black flex-grow" data-testid="selected-date-display">
           <span className="text-xl font-semibold">
             {date.toLocaleDateString('en-US', { 
               weekday: 'long',
@@ -419,30 +440,20 @@ export default function BookingForm() {
       </div>
 
       <div className="flex gap-4 mb-8 justify-center">
-        <button
+        <CourtGraphic
+          isActive={court1Active}
+          courtNumber={1}
           onClick={() => handleCourtToggle(true)}
-          className={`w-64 h-64 border-2 border-black p-4 text-2xl font-semibold ${
-            court1Active ? 'bg-blue-200' : 'hover:bg-gray-100'
-          }`}
-        >
-          Court 1
-          <br />
-          Toggle
-        </button>
+        />
 
-        <button
+        <CourtGraphic
+          isActive={court2Active}
+          courtNumber={2}
           onClick={() => handleCourtToggle(false)}
-          className={`w-64 h-64 border-2 border-black p-4 text-2xl font-semibold ${
-            court2Active ? 'bg-blue-200' : 'hover:bg-gray-100'
-          }`}
-        >
-          Court 2
-          <br />
-          Toggle
-        </button>
+        />
       </div>
 
-      <div className="border-2 border-black">
+      <div className="border-2 border-black" data-testid="players-table-container">
         <table className="w-full">
           <thead>
             <tr className="border-b-2 border-black">
@@ -453,7 +464,7 @@ export default function BookingForm() {
           </thead>
           <tbody>
             {players.map((player, index) => (
-              <tr key={index} className="border-b border-gray-200">
+              <tr key={index} className="border-b border-gray-200" data-testid={`player-row-${index}`}>
                 <td className="p-4">
                   <input
                     type="text"
@@ -461,6 +472,7 @@ export default function BookingForm() {
                     placeholder="Enter name"
                     value={player.name}
                     onChange={(e) => handlePlayerNameChange(index, e.target.value)}
+                    data-testid={`player-name-input-${index}`}
                   />
                 </td>
                 <td className="p-4">
@@ -470,6 +482,7 @@ export default function BookingForm() {
                     placeholder="0.00"
                     value={player.courtFees ?? ''}
                     disabled
+                    data-testid={`player-fees-input-${index}`}
                   />
                 </td>
                 <td className="p-4">
@@ -483,6 +496,7 @@ export default function BookingForm() {
                     className={`${
                       player.paid ? 'bg-green-600' : 'bg-gray-200'
                     } relative inline-flex h-6 w-11 items-center rounded-full`}
+                    data-testid={`player-paid-toggle-${index}`}
                   >
                     <span className="sr-only">Paid status</span>
                     <span
@@ -502,6 +516,7 @@ export default function BookingForm() {
         <button
           onClick={handleSave}
           className="px-8 py-4 bg-blue-600 text-white text-xl font-semibold rounded hover:bg-blue-700 transition-colors"
+          data-testid="save-bookings-button"
         >
           Save Bookings
         </button>

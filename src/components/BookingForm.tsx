@@ -359,24 +359,7 @@ export default function BookingForm() {
 
   return (
     <div className="relative max-w-6xl mx-auto p-6">
-      {/* Navigation Bars */}
-      <button
-        onClick={handlePrevDay}
-        className="fixed left-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
-        style={{ clipPath: 'polygon(0 0, 50% 0, 100% 100%, 0 100%)' }}
-      >
-        <span className="sr-only">Previous Day</span>
-        <div className="w-8 h-8 border-l-4 border-t-4 border-white transform -rotate-45 ml-8"></div>
-      </button>
-
-      <button
-        onClick={handleNextDay}
-        className="fixed right-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
-        style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 0 100%)' }}
-      >
-        <span className="sr-only">Next Day</span>
-        <div className="w-8 h-8 border-r-4 border-t-4 border-white transform rotate-45 mr-8"></div>
-      </button>
+      {/* Remove Navigation Bars */}
 
       {/* Loading Overlay */}
       {isLoading && (

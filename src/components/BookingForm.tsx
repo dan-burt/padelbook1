@@ -541,19 +541,6 @@ export default function BookingForm() {
         </div>
       </div>
 
-      <div className="mb-8">
-        <div className="px-6 py-4 border-2 border-black flex-grow" data-testid="selected-date-display">
-          <span className="text-xl font-semibold">
-            {date.toLocaleDateString('en-US', { 
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </span>
-        </div>
-      </div>
-
       <div className="flex gap-4 mb-8 justify-center">
         <CourtGraphic
           isActive={court1Active}

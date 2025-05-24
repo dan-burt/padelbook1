@@ -6,6 +6,7 @@ import { Database } from '@/lib/database.types';
 import { Switch } from '@headlessui/react';
 import toast from 'react-hot-toast';
 import CourtGraphic from './CourtGraphic';
+import PlayerTable from './PlayerTable';
 
 type Player = Database['public']['Tables']['players']['Row'];
 type Court = Database['public']['Tables']['courts']['Row'];
@@ -453,64 +454,12 @@ export default function BookingForm() {
         />
       </div>
 
-      <div className="border-2 border-black" data-testid="players-table-container">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b-2 border-black">
-              <th className="p-4 text-left text-xl">Name</th>
-              <th className="p-4 text-left text-xl">Court Fees</th>
-              <th className="p-4 text-left text-xl">Paid Toggle</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((player, index) => (
-              <tr key={index} className="border-b border-gray-200" data-testid={`player-row-${index}`}>
-                <td className="p-4">
-                  <input
-                    type="text"
-                    className="w-full p-2 border rounded"
-                    placeholder="Enter name"
-                    value={player.name}
-                    onChange={(e) => handlePlayerNameChange(index, e.target.value)}
-                    data-testid={`player-name-input-${index}`}
-                  />
-                </td>
-                <td className="p-4">
-                  <input
-                    type="number"
-                    className="w-full p-2 border rounded bg-gray-50"
-                    placeholder="0.00"
-                    value={player.courtFees ?? ''}
-                    disabled
-                    data-testid={`player-fees-input-${index}`}
-                  />
-                </td>
-                <td className="p-4">
-                  <Switch
-                    checked={player.paid}
-                    onChange={(checked) => {
-                      const newPlayers = [...players];
-                      newPlayers[index] = { ...player, paid: checked };
-                      setPlayers(newPlayers);
-                    }}
-                    className={`${
-                      player.paid ? 'bg-green-600' : 'bg-gray-200'
-                    } relative inline-flex h-6 w-11 items-center rounded-full`}
-                    data-testid={`player-paid-toggle-${index}`}
-                  >
-                    <span className="sr-only">Paid status</span>
-                    <span
-                      className={`${
-                        player.paid ? 'translate-x-6' : 'translate-x-1'
-                      } inline-block h-4 w-4 transform rounded-full bg-white transition`}
-                    />
-                  </Switch>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PlayerTable 
+        players={players}
+        onPlayersChange={(newPlayers) => {
+          setPlayers(calculateCourtFees(newPlayers));
+        }}
+      />
 
       <div className="mt-8 flex justify-end">
         <button

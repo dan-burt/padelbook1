@@ -3,6 +3,7 @@ import { Switch } from '@headlessui/react';
 import { PlusIcon, MinusIcon } from '@heroicons/react/24/outline';
 
 interface Player {
+  id?: string;
   name: string;
   courtFees: number | null;
   paid: boolean;
@@ -11,9 +12,16 @@ interface Player {
 interface PlayerTableProps {
   players: Player[];
   onPlayersChange: (players: Player[]) => void;
+  onRemoveExistingPlayer?: (playerId: string) => Promise<void>;
+  isExistingBooking?: boolean;
 }
 
-export default function PlayerTable({ players, onPlayersChange }: PlayerTableProps) {
+export default function PlayerTable({ 
+  players, 
+  onPlayersChange, 
+  onRemoveExistingPlayer,
+  isExistingBooking = false 
+}: PlayerTableProps) {
   const handleNameChange = (index: number, name: string) => {
     const newPlayers = [...players];
     newPlayers[index] = { ...players[index], name };
@@ -30,9 +38,17 @@ export default function PlayerTable({ players, onPlayersChange }: PlayerTablePro
     onPlayersChange([...players, { name: '', courtFees: null, paid: false }]);
   };
 
-  const removePlayer = (index: number) => {
-    const newPlayers = players.filter((_, i) => i !== index);
-    onPlayersChange(newPlayers);
+  const removePlayer = async (index: number) => {
+    const player = players[index];
+    
+    if (isExistingBooking && player.id && onRemoveExistingPlayer) {
+      // For existing bookings, call the remove handler
+      await onRemoveExistingPlayer(player.id);
+    } else {
+      // For new bookings, just filter out the player
+      const newPlayers = players.filter((_, i) => i !== index);
+      onPlayersChange(newPlayers);
+    }
   };
 
   return (
@@ -84,6 +100,7 @@ export default function PlayerTable({ players, onPlayersChange }: PlayerTablePro
                     value={player.name}
                     onChange={(e) => handleNameChange(index, e.target.value)}
                     data-testid={`player-name-input-${index}`}
+                    disabled={isExistingBooking && player.id !== undefined}
                   />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

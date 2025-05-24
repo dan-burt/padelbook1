@@ -456,64 +456,66 @@ export default function BookingForm() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between space-x-4">
-        <button
-          onClick={handlePrevDay}
-          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-        >
-          Previous Day
-        </button>
-        <DatePicker
-          selected={date}
-          onChange={(newDate: Date | null) => newDate && setDate(newDate)}
-          inline
-          calendarClassName="!border-none"
-        />
-        <button
-          onClick={handleNextDay}
-          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-        >
-          Next Day
-        </button>
+    <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
+      {/* Navigation Bars */}
+      <button
+        onClick={handlePrevDay}
+        className="fixed left-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
+        style={{ clipPath: 'polygon(0 0, 50% 0, 100% 100%, 0 100%)' }}
+        data-testid="prev-day-button"
+      >
+        <span className="sr-only">Previous Day</span>
+        <div className="w-8 h-8 border-l-4 border-t-4 border-white transform -rotate-45 ml-8"></div>
+      </button>
+
+      <button
+        onClick={handleNextDay}
+        className="fixed right-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
+        style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 0 100%)' }}
+        data-testid="next-day-button"
+      >
+        <span className="sr-only">Next Day</span>
+        <div className="w-8 h-8 border-r-4 border-t-4 border-white transform rotate-45 mr-8"></div>
+      </button>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-black"></div>
+        </div>
+      )}
+
+      <div className="flex gap-4 mb-8 items-start">
         <button
           onClick={handleNewDay}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="px-6 py-4 border-2 border-black text-xl font-semibold hover:bg-gray-100 shrink-0"
+          data-testid="new-day-button"
         >
-          Today
+          New Day
         </button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Court Selection</h2>
-          <div className="flex gap-4 mb-8 justify-center">
-            <CourtGraphic
-              isActive={court1Active}
-              courtNumber={1}
-              onClick={() => handleCourtToggle(true)}
-            />
-
-            <CourtGraphic
-              isActive={court2Active}
-              courtNumber={2}
-              onClick={() => handleCourtToggle(false)}
-            />
-          </div>
+        <div className="border-2 border-black shrink-0" data-testid="date-picker-container">
+          <DatePicker
+            selected={date}
+            onChange={(newDate: Date | null) => newDate && setDate(newDate)}
+            inline
+            calendarClassName="!border-none"
+          />
         </div>
 
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Time Slots</h2>
+        <div className="flex-1 border-2 border-black p-4 min-h-[320px]" data-testid="time-slots-container">
+          <h3 className="text-xl font-semibold mb-4">Available Time Slots</h3>
           <div className="grid grid-cols-4 gap-2">
-            {TIME_SLOTS.map(slot => (
+            {TIME_SLOTS.map((slot) => (
               <button
                 key={slot.value}
                 onClick={() => toggleTimeSlot(slot.value)}
-                className={`p-2 rounded ${
-                  selectedTimeSlots.includes(slot.value)
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 hover:bg-gray-300'
+                className={`p-2 border-2 border-black rounded ${
+                  selectedTimeSlots.includes(slot.value) 
+                    ? 'bg-blue-200' 
+                    : 'hover:bg-gray-100'
                 }`}
+                data-testid={`time-slot-${slot.value}`}
               >
                 {slot.label}
               </button>
@@ -522,32 +524,49 @@ export default function BookingForm() {
         </div>
       </div>
 
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Players</h2>
-        <PlayerTable
-          players={players}
-          onPlayersChange={(newPlayers) => {
-            setPlayers(calculateCourtFees(newPlayers));
-          }}
-          onRemoveExistingPlayer={handleRemovePlayer}
-          isExistingBooking={hasExistingBooking}
+      <div className="mb-8">
+        <div className="px-6 py-4 border-2 border-black flex-grow" data-testid="selected-date-display">
+          <span className="text-xl font-semibold">
+            {date.toLocaleDateString('en-US', { 
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mb-8 justify-center">
+        <CourtGraphic
+          isActive={court1Active}
+          courtNumber={1}
+          onClick={() => handleCourtToggle(true)}
+        />
+
+        <CourtGraphic
+          isActive={court2Active}
+          courtNumber={2}
+          onClick={() => handleCourtToggle(false)}
         />
       </div>
 
-      <div className="flex justify-end space-x-4">
-        <button
-          onClick={resetForm}
-          className="px-6 py-2 bg-gray-200 rounded hover:bg-gray-300"
-          disabled={isLoading}
-        >
-          Reset
-        </button>
+      <PlayerTable 
+        players={players}
+        onPlayersChange={(newPlayers) => {
+          setPlayers(calculateCourtFees(newPlayers));
+        }}
+        onRemoveExistingPlayer={handleRemovePlayer}
+        isExistingBooking={hasExistingBooking}
+      />
+
+      <div className="mt-8 flex justify-end">
         <button
           onClick={handleSave}
-          className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="px-8 py-4 bg-blue-600 text-white text-xl font-semibold rounded hover:bg-blue-700 transition-colors"
           disabled={isLoading}
         >
-          {isLoading ? 'Saving...' : 'Save Booking'}
+          {isLoading ? 'Saving...' : 'Save Bookings'}
         </button>
       </div>
     </div>

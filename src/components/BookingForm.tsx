@@ -463,18 +463,6 @@ export default function BookingForm() {
 
   return (
     <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
-      {/* Logo */}
-      <div className="flex justify-center mb-8">
-        <Image
-          src="/logo.png"
-          alt="Chapel-A Padel Tribe Logo"
-          width={200}
-          height={200}
-          priority
-          className="rounded-full"
-        />
-      </div>
-
       {/* Navigation Bars */}
       <button
         onClick={handlePrevDay}
@@ -504,6 +492,18 @@ export default function BookingForm() {
       )}
 
       <div className="flex gap-4 mb-8 items-start">
+        {/* Logo */}
+        <div className="w-[150px] h-[150px] relative shrink-0">
+          <Image
+            src="/logo.png"
+            alt="Chapel-A Padel Tribe Logo"
+            fill
+            sizes="150px"
+            style={{ objectFit: 'contain' }}
+            priority
+          />
+        </div>
+
         <div className="border-2 border-black shrink-0" data-testid="date-picker-container">
           <DatePicker
             selected={date}

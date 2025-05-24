@@ -7,6 +7,7 @@ import { Switch } from '@headlessui/react';
 import toast from 'react-hot-toast';
 import CourtGraphic from './CourtGraphic';
 import PlayerTable from './PlayerTable';
+import Image from 'next/image';
 
 type Player = Database['public']['Tables']['players']['Row'];
 type Court = Database['public']['Tables']['courts']['Row'];
@@ -223,6 +224,22 @@ export default function BookingForm() {
     const nextDay = new Date(date);
     nextDay.setDate(nextDay.getDate() + 1);
     setDate(nextDay);
+  };
+
+  const toggleTimeSlot = (timeSlot: string) => {
+    setSelectedTimeSlots(prev => 
+      prev.includes(timeSlot)
+        ? prev.filter(slot => slot !== timeSlot)
+        : [...prev, timeSlot].sort()
+    );
+  };
+
+  const handleCourtToggle = (isCourt1: boolean) => {
+    if (isCourt1) {
+      setCourt1Active(prev => !prev);
+    } else {
+      setCourt2Active(prev => !prev);
+    }
   };
 
   const handleSave = async () => {
@@ -446,6 +463,18 @@ export default function BookingForm() {
 
   return (
     <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
+      {/* Logo */}
+      <div className="flex justify-center mb-8">
+        <Image
+          src="/logo.png"
+          alt="Chapel-A Padel Tribe Logo"
+          width={200}
+          height={200}
+          priority
+          className="rounded-full"
+        />
+      </div>
+
       {/* Navigation Bars */}
       <button
         onClick={handlePrevDay}

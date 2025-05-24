@@ -34,6 +34,8 @@ export default function BookingForm() {
     { name: '', courtFees: null, paid: false },
     { name: '', courtFees: null, paid: false },
     { name: '', courtFees: null, paid: false },
+    { name: '', courtFees: null, paid: false },
+    { name: '', courtFees: null, paid: false },
     { name: '', courtFees: null, paid: false }
   ]);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +45,8 @@ export default function BookingForm() {
     setCourt2Active(false);
     setSelectedTimeSlots([]);
     setPlayers([
+      { name: '', courtFees: null, paid: false },
+      { name: '', courtFees: null, paid: false },
       { name: '', courtFees: null, paid: false },
       { name: '', courtFees: null, paid: false },
       { name: '', courtFees: null, paid: false },
@@ -140,11 +144,22 @@ export default function BookingForm() {
       setCourt1Active(courts.has(1));
       setCourt2Active(courts.has(2));
 
-      // Update players list with calculated fees
-      setPlayers([
-        ...uniquePlayers,
-        ...Array(6 - uniquePlayers.length).fill({ name: '', courtFees: null, paid: false })
-      ]);
+      // If we have existing bookings, show only those players
+      if (numberOfPlayers > 0) {
+        setPlayers(uniquePlayers);
+      } else {
+        // For new bookings, show 8 empty rows
+        setPlayers([
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false },
+          { name: '', courtFees: null, paid: false }
+        ]);
+      }
 
     } catch (error) {
       console.error('Error loading bookings:', error);
@@ -173,6 +188,8 @@ export default function BookingForm() {
     setCourt2Active(false);
     setSelectedTimeSlots([]);
     setPlayers([
+      { name: '', courtFees: null, paid: false },
+      { name: '', courtFees: null, paid: false },
       { name: '', courtFees: null, paid: false },
       { name: '', courtFees: null, paid: false },
       { name: '', courtFees: null, paid: false },
@@ -232,193 +249,217 @@ export default function BookingForm() {
       setCourt1Active(prev => {
         const newValue = !prev;
         // Recalculate fees after court toggle
-        setTimeout(() => setPlayers(prev => calculateCourtFees(prev)), 0);
+        setPlayers(prevPlayers => calculateCourtFees(prevPlayers));
         return newValue;
       });
     } else {
       setCourt2Active(prev => {
         const newValue = !prev;
         // Recalculate fees after court toggle
-        setTimeout(() => setPlayers(prev => calculateCourtFees(prev)), 0);
+        setPlayers(prevPlayers => calculateCourtFees(prevPlayers));
         return newValue;
       });
     }
   };
 
   const handleSave = async () => {
-    // Validate required fields
-    if (!selectedTimeSlots.length) {
-      toast.error('Please select at least one time slot');
-      return;
-    }
-
-    if (!court1Active && !court2Active) {
-      toast.error('Please select at least one court');
-      return;
-    }
-
-    const validPlayers = players.filter(p => p?.name && p.name.trim() !== '');
-    if (!validPlayers.length) {
-      toast.error('Please add at least one player');
-      return;
-    }
-
+    setIsLoading(true);
     try {
-      // Get selected courts
-      const selectedCourts = [];
-      if (court1Active) selectedCourts.push(1);
-      if (court2Active) selectedCourts.push(2);
+      // Validate inputs
+      if (!selectedTimeSlots.length) {
+        toast.error('Please select at least one time slot');
+        return;
+      }
 
-      // Create bookings for each court and time slot combination
-      for (const courtNumber of selectedCourts) {
-        for (const timeSlot of selectedTimeSlots) {
-          // Create booking date by combining selected date with time slot
-          const [hours] = timeSlot.split(':');
-          const bookingDate = new Date(date);
-          bookingDate.setHours(parseInt(hours), 0, 0, 0);
+      if (!court1Active && !court2Active) {
+        toast.error('Please select at least one court');
+        return;
+      }
 
-          // Check for existing bookings
-          const { data: existingBookings, error: checkError } = await supabase
-            .from('bookings')
-            .select('*')
-            .eq('booking_date', bookingDate.toISOString().split('T')[0])
-            .eq('start_time', `${timeSlot}:00`)
-            .eq('number_of_courts', courtNumber);
+      const validPlayers = players.filter(p => p.name.trim() !== '');
+      if (validPlayers.length === 0) {
+        toast.error('Please add at least one player');
+        return;
+      }
 
-          if (checkError) {
-            console.error('Error checking existing bookings:', checkError);
-            toast.error(`Failed to check court ${courtNumber} at ${timeSlot}`);
-            continue;
-          }
+      // Sort time slots for consistent ordering
+      const sortedTimeSlots = [...selectedTimeSlots].sort();
 
-          if (existingBookings && existingBookings.length > 0) {
-            toast.error(`Court ${courtNumber} is already booked at ${timeSlot}`);
-            continue;
-          }
+      // Check if any of these courts are already booked for the selected time slots
+      const { data: existingBookings, error: bookingCheckError } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('booking_date', date.toISOString().split('T')[0])
+        .in('start_time', sortedTimeSlots);
 
-          // First, create the booking
-          const { data: bookingData, error: bookingError } = await supabase
-            .from('bookings')
-            .insert({
-              booking_date: bookingDate.toISOString().split('T')[0],
-              start_time: `${timeSlot}:00`,
-              duration_hours: 1,
-              number_of_courts: courtNumber,
-              total_price: validPlayers.reduce((sum, p) => sum + (p.courtFees || 0), 0)
-            })
-            .select()
-            .single();
+      if (bookingCheckError) {
+        console.error('Error checking existing bookings:', bookingCheckError);
+        toast.error('Error checking court availability');
+        return;
+      }
 
-          if (bookingError) {
-            console.error('Error creating booking:', bookingError);
-            toast.error(`Failed to book court ${courtNumber} at ${timeSlot}`);
-            continue;
-          }
-
-          // Then, create player entries for this booking
-          for (const player of validPlayers) {
-            // First, ensure the player exists in the players table
-            const { data: playerData, error: playerError } = await supabase
-              .from('players')
-              .upsert({
-                name: player.name,
-                email: null // Optional in schema
-              })
-              .select()
-              .single();
-
-            if (playerError) {
-              console.error('Error creating/updating player:', playerError);
-              continue;
-            }
-
-            // Then create the booking_players entry
-            const { error: bookingPlayerError } = await supabase
-              .from('booking_players')
-              .insert({
-                booking_id: bookingData.id,
-                player_id: playerData.id,
-                has_paid: player.paid,
-                amount_due: player.courtFees || 0
-              });
-
-            if (bookingPlayerError) {
-              console.error('Error creating booking player:', bookingPlayerError);
-              continue;
-            }
-          }
-
-          toast.success(`Booked court ${courtNumber} at ${timeSlot}`);
+      // Check for conflicts
+      for (const booking of existingBookings || []) {
+        if (court1Active && booking.number_of_courts === 1) {
+          toast.error(`Court 1 is already booked at ${booking.start_time}`);
+          return;
+        }
+        if (court2Active && booking.number_of_courts === 2) {
+          toast.error(`Court 2 is already booked at ${booking.start_time}`);
+          return;
         }
       }
 
-      handleNewDay(); // Reset form after successful save
+      // Create bookings for each time slot
+      for (const timeSlot of sortedTimeSlots) {
+        // Create booking
+        const { data: booking, error: bookingError } = await supabase
+          .from('bookings')
+          .insert([{
+            booking_date: date.toISOString().split('T')[0],
+            start_time: timeSlot,
+            number_of_courts: court2Active ? 2 : 1
+          }])
+          .select()
+          .single();
+
+        if (bookingError) {
+          console.error('Error creating booking:', bookingError);
+          toast.error('Error creating booking');
+          return;
+        }
+
+        // For each player with a name, create or get player record and create booking_player record
+        for (const player of validPlayers) {
+          // First, check if player already exists
+          let { data: existingPlayer, error: playerError } = await supabase
+            .from('players')
+            .select()
+            .ilike('name', player.name.trim())
+            .maybeSingle();
+
+          if (playerError) {
+            console.error('Error checking existing player:', playerError);
+            toast.error('Error processing player data');
+            return;
+          }
+
+          let playerId;
+
+          if (existingPlayer) {
+            playerId = existingPlayer.id;
+          } else {
+            // Create new player
+            const { data: newPlayer, error: createPlayerError } = await supabase
+              .from('players')
+              .insert([{ name: player.name.trim() }])
+              .select()
+              .single();
+
+            if (createPlayerError) {
+              console.error('Error creating player:', createPlayerError);
+              toast.error('Error creating player');
+              return;
+            }
+
+            playerId = newPlayer.id;
+          }
+
+          // Create booking_player record
+          const { error: bookingPlayerError } = await supabase
+            .from('booking_players')
+            .insert([{
+              booking_id: booking.id,
+              player_id: playerId,
+              amount_due: player.courtFees || 0,
+              has_paid: player.paid
+            }]);
+
+          if (bookingPlayerError) {
+            console.error('Error creating booking_player:', bookingPlayerError);
+            toast.error('Error linking player to booking');
+            return;
+          }
+        }
+      }
+
+      toast.success('Booking saved successfully!');
+      resetForm();
     } catch (error) {
-      console.error('Error saving bookings:', error);
-      toast.error('Failed to save bookings');
+      console.error('Error saving booking:', error);
+      toast.error('Error saving booking');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const calculatePerPlayerCost = (totalPlayers: number) => {
+    if (totalPlayers === 0) return 0;
+    
+    const numberOfCourts = (court1Active ? 1 : 0) + (court2Active ? 1 : 0);
+    const numberOfHours = selectedTimeSlots.length;
+    const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
+    
+    return Math.ceil(totalCourtCost / totalPlayers);
+  };
+
+  const handlePaidToggle = (index: number) => {
+    const newPlayers = [...players];
+    newPlayers[index] = { ...players[index], paid: !players[index].paid };
+    setPlayers(newPlayers);
+  };
+
   return (
-    <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
-      {/* Navigation Bars */}
-      <button
-        onClick={handlePrevDay}
-        className="fixed left-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
-        style={{ clipPath: 'polygon(0 0, 50% 0, 100% 100%, 0 100%)' }}
-        data-testid="prev-day-button"
-      >
-        <span className="sr-only">Previous Day</span>
-        <div className="w-8 h-8 border-l-4 border-t-4 border-white transform -rotate-45 ml-8"></div>
-      </button>
-
-      <button
-        onClick={handleNextDay}
-        className="fixed right-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
-        style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 0 100%)' }}
-      >
-        <span className="sr-only">Next Day</span>
-        <div className="w-8 h-8 border-r-4 border-t-4 border-white transform rotate-45 mr-8"></div>
-      </button>
-
-      {/* Loading Overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
-          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-black"></div>
-        </div>
-      )}
-
-      <div className="flex gap-4 mb-8 items-start">
+    <div className="max-w-4xl mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between space-x-4">
+        <button
+          onClick={handlePrevDay}
+          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+        >
+          Previous Day
+        </button>
+        <DatePicker
+          selected={date}
+          onChange={(date: Date) => setDate(date)}
+          dateFormat="MMMM d, yyyy"
+          className="px-4 py-2 border rounded text-center"
+        />
+        <button
+          onClick={handleNextDay}
+          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+        >
+          Next Day
+        </button>
         <button
           onClick={handleNewDay}
-          className="px-6 py-4 border-2 border-black text-xl font-semibold hover:bg-gray-100 shrink-0"
-          data-testid="new-day-button"
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
-          New Day
+          Today
         </button>
+      </div>
 
-        <div className="border-2 border-black shrink-0" data-testid="date-picker-container">
-          <DatePicker
-            selected={date}
-            onChange={(date: Date | null) => date && setDate(date)}
-            inline
-            calendarClassName="!border-none"
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Court Selection</h2>
+          <CourtGraphic
+            court1Active={court1Active}
+            court2Active={court2Active}
+            onCourtToggle={handleCourtToggle}
           />
         </div>
 
-        <div className="flex-1 border-2 border-black p-4 min-h-[320px]" data-testid="time-slots-container">
-          <h3 className="text-xl font-semibold mb-4">Available Time Slots</h3>
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Time Slots</h2>
           <div className="grid grid-cols-4 gap-2">
-            {TIME_SLOTS.map((slot) => (
+            {TIME_SLOTS.map(slot => (
               <button
                 key={slot.value}
                 onClick={() => toggleTimeSlot(slot.value)}
-                className={`p-2 border-2 border-black rounded ${
-                  selectedTimeSlots.includes(slot.value) 
-                    ? 'bg-blue-200' 
-                    : 'hover:bg-gray-100'
+                className={`p-2 rounded ${
+                  selectedTimeSlots.includes(slot.value)
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 hover:bg-gray-300'
                 }`}
-                data-testid={`time-slot-${slot.value}`}
               >
                 {slot.label}
               </button>
@@ -427,49 +468,31 @@ export default function BookingForm() {
         </div>
       </div>
 
-      <div className="mb-8">
-        <div className="px-6 py-4 border-2 border-black flex-grow" data-testid="selected-date-display">
-          <span className="text-xl font-semibold">
-            {date.toLocaleDateString('en-US', { 
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex gap-4 mb-8 justify-center">
-        <CourtGraphic
-          isActive={court1Active}
-          courtNumber={1}
-          onClick={() => handleCourtToggle(true)}
-        />
-
-        <CourtGraphic
-          isActive={court2Active}
-          courtNumber={2}
-          onClick={() => handleCourtToggle(false)}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Players</h2>
+        <PlayerTable
+          players={players}
+          onPlayerNameChange={handlePlayerNameChange}
+          onPaidToggle={handlePaidToggle}
         />
       </div>
 
-      <PlayerTable 
-        players={players}
-        onPlayersChange={(newPlayers) => {
-          setPlayers(calculateCourtFees(newPlayers));
-        }}
-      />
-
-      <div className="mt-8 flex justify-end">
+      <div className="flex justify-end space-x-4">
+        <button
+          onClick={resetForm}
+          className="px-6 py-2 bg-gray-200 rounded hover:bg-gray-300"
+          disabled={isLoading}
+        >
+          Reset
+        </button>
         <button
           onClick={handleSave}
-          className="px-8 py-4 bg-blue-600 text-white text-xl font-semibold rounded hover:bg-blue-700 transition-colors"
-          data-testid="save-bookings-button"
+          className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          disabled={isLoading}
         >
-          Save Bookings
+          {isLoading ? 'Saving...' : 'Save Booking'}
         </button>
       </div>
     </div>
   );
-} 
+}

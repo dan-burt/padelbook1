@@ -225,86 +225,6 @@ export default function BookingForm() {
     setDate(nextDay);
   };
 
-  const handleNewDay = () => {
-    setDate(new Date());
-    setCourt1Active(false);
-    setCourt2Active(false);
-    setSelectedTimeSlots([]);
-    setPlayers([
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false },
-      { name: '', courtFees: null, paid: false }
-    ]);
-  };
-
-  const calculateCourtFees = (players: Array<{name: string, courtFees: number | null, paid: boolean}>) => {
-    // Only count players with names
-    const validPlayers = players.filter(p => p.name.trim() !== '');
-    const numberOfPlayers = validPlayers.length;
-    
-    if (numberOfPlayers === 0) return players;
-
-    // Count selected courts and hours
-    const numberOfCourts = (court1Active ? 1 : 0) + (court2Active ? 1 : 0);
-    const numberOfHours = selectedTimeSlots.length;
-    
-    // Calculate total court cost
-    const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
-    
-    // Calculate per player cost with discount for more than 4 players
-    let perPlayerCost = totalCourtCost / numberOfPlayers;
-    
-    // Round up to nearest whole number
-    perPlayerCost = Math.ceil(perPlayerCost);
-
-    // Update court fees for players with names
-    return players.map(player => ({
-      ...player,
-      courtFees: player.name.trim() !== '' ? perPlayerCost : null
-    }));
-  };
-
-  const handlePlayerNameChange = (index: number, name: string) => {
-    const newPlayers = [...players];
-    newPlayers[index] = { ...players[index], name };
-    setPlayers(calculateCourtFees(newPlayers));
-  };
-
-  const toggleTimeSlot = (timeSlot: string) => {
-    setSelectedTimeSlots(prev => {
-      const newTimeSlots = prev.includes(timeSlot) 
-        ? prev.filter(t => t !== timeSlot)
-        : [...prev, timeSlot];
-      
-      // Recalculate fees after time slot change
-      setPlayers(prev => calculateCourtFees(prev));
-      return newTimeSlots;
-    });
-  };
-
-  const handleCourtToggle = (isFirstCourt: boolean) => {
-    if (isFirstCourt) {
-      setCourt1Active(prev => {
-        const newValue = !prev;
-        // Recalculate fees after court toggle
-        setPlayers(prevPlayers => calculateCourtFees(prevPlayers));
-        return newValue;
-      });
-    } else {
-      setCourt2Active(prev => {
-        const newValue = !prev;
-        // Recalculate fees after court toggle
-        setPlayers(prevPlayers => calculateCourtFees(prevPlayers));
-        return newValue;
-      });
-    }
-  };
-
   const handleSave = async () => {
     setIsLoading(true);
     try {
@@ -497,6 +417,33 @@ export default function BookingForm() {
     setPlayers(newPlayers);
   };
 
+  const calculateCourtFees = (players: Array<{name: string, courtFees: number | null, paid: boolean}>) => {
+    // Only count players with names
+    const validPlayers = players.filter(p => p.name.trim() !== '');
+    const numberOfPlayers = validPlayers.length;
+    
+    if (numberOfPlayers === 0) return players;
+
+    // Count selected courts and hours
+    const numberOfCourts = (court1Active ? 1 : 0) + (court2Active ? 1 : 0);
+    const numberOfHours = selectedTimeSlots.length;
+    
+    // Calculate total court cost
+    const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
+    
+    // Calculate per player cost with discount for more than 4 players
+    let perPlayerCost = totalCourtCost / numberOfPlayers;
+    
+    // Round up to nearest whole number
+    perPlayerCost = Math.ceil(perPlayerCost);
+
+    // Update court fees for players with names
+    return players.map(player => ({
+      ...player,
+      courtFees: player.name.trim() !== '' ? perPlayerCost : null
+    }));
+  };
+
   return (
     <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
       {/* Navigation Bars */}
@@ -528,14 +475,6 @@ export default function BookingForm() {
       )}
 
       <div className="flex gap-4 mb-8 items-start">
-        <button
-          onClick={handleNewDay}
-          className="px-6 py-4 border-2 border-black text-xl font-semibold hover:bg-gray-100 shrink-0"
-          data-testid="new-day-button"
-        >
-          New Day
-        </button>
-
         <div className="border-2 border-black shrink-0" data-testid="date-picker-container">
           <DatePicker
             selected={date}

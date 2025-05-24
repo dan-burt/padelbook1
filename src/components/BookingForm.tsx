@@ -25,6 +25,7 @@ const BASE_COURT_RATE = 16; // £16 per player per court per hour
 
 export default function BookingForm() {
   const [date, setDate] = useState<Date>(new Date());
+  const [datesWithBookings, setDatesWithBookings] = useState<Date[]>([]);
   const [court1Active, setCourt1Active] = useState(false);
   const [court2Active, setCourt2Active] = useState(false);
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
@@ -62,6 +63,41 @@ export default function BookingForm() {
   useEffect(() => {
     loadBookingsForDate(date);
   }, [date]);
+
+  useEffect(() => {
+    loadAllBookingDates();
+  }, []);
+
+  const loadAllBookingDates = async (targetDate: Date = new Date()) => {
+    try {
+      // Get the start and end of the month
+      const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('booking_date')
+        .gte('booking_date', startDate.toISOString().split('T')[0])
+        .lte('booking_date', endDate.toISOString().split('T')[0])
+        .order('booking_date');
+
+      if (error) {
+        console.error('Error loading booking dates:', error);
+        return;
+      }
+
+      // Convert booking dates to Date objects
+      const dates = bookings
+        .map(booking => new Date(booking.booking_date))
+        .filter((date, index, self) => 
+          index === self.findIndex(d => d.toDateString() === date.toDateString())
+        );
+
+      setDatesWithBookings(dates);
+    } catch (error) {
+      console.error('Error loading booking dates:', error);
+    }
+  };
 
   const loadBookingsForDate = async (targetDate: Date) => {
     setIsLoading(true);
@@ -319,13 +355,19 @@ export default function BookingForm() {
 
       // Create bookings for each time slot
       for (const timeSlot of sortedTimeSlots) {
+        // Calculate total price for this booking
+        const numberOfCourts = court2Active ? 2 : 1;
+        const totalPrice = BASE_COURT_RATE * numberOfCourts;
+
         // Create booking
         const { data: booking, error: bookingError } = await supabase
           .from('bookings')
           .insert([{
             booking_date: date.toISOString().split('T')[0],
             start_time: timeSlot,
-            number_of_courts: court2Active ? 2 : 1
+            number_of_courts: numberOfCourts,
+            duration_hours: 1,  // Each time slot is 1 hour
+            total_price: totalPrice
           }])
           .select()
           .single();
@@ -498,8 +540,15 @@ export default function BookingForm() {
           <DatePicker
             selected={date}
             onChange={(newDate: Date | null) => newDate && setDate(newDate)}
+            onMonthChange={loadAllBookingDates}
             inline
             calendarClassName="!border-none"
+            dayClassName={date => 
+              datesWithBookings.some(bookingDate => 
+                bookingDate.toDateString() === date.toDateString()
+              ) ? "bg-blue-100" : ""
+            }
+            highlightDates={datesWithBookings}
           />
         </div>
 

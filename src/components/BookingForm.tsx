@@ -463,6 +463,9 @@ export default function BookingForm() {
 
   return (
     <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
+      {/* Page Title */}
+      <h1 className="text-4xl font-bold text-center mb-8">Padel Tribe Court Booker</h1>
+
       {/* Navigation Bars */}
       <button
         onClick={handlePrevDay}

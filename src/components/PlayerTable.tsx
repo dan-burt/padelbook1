@@ -1,6 +1,8 @@
 import React from 'react';
 import { Switch } from '@headlessui/react';
 import { PlusIcon, MinusIcon } from '@heroicons/react/24/outline';
+import { supabase } from '@/lib/supabase';
+import toast from 'react-hot-toast';
 
 interface Player {
   id?: string;
@@ -28,10 +30,35 @@ export default function PlayerTable({
     onPlayersChange(newPlayers);
   };
 
-  const handlePaidChange = (index: number, paid: boolean) => {
+  const handlePaidChange = async (index: number, paid: boolean) => {
+    const player = players[index];
+    
+    // Update local state first for immediate feedback
     const newPlayers = [...players];
     newPlayers[index] = { ...players[index], paid };
     onPlayersChange(newPlayers);
+
+    // If this is an existing booking and player has an ID, update the database
+    if (isExistingBooking && player.id) {
+      try {
+        const { error } = await supabase
+          .from('booking_players')
+          .update({ has_paid: paid })
+          .eq('player_id', player.id);
+
+        if (error) {
+          // Revert local state if update fails
+          newPlayers[index] = { ...players[index] };
+          onPlayersChange(newPlayers);
+          throw error;
+        }
+
+        toast.success(`Payment status ${paid ? 'marked as paid' : 'marked as unpaid'}`);
+      } catch (error) {
+        console.error('Error updating payment status:', error);
+        toast.error('Failed to update payment status');
+      }
+    }
   };
 
   const addPlayer = () => {

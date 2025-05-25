@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { supabase } from '@/lib/supabase';
@@ -9,9 +9,17 @@ import CourtGraphic from './CourtGraphic';
 import PlayerTable from './PlayerTable';
 import Image from 'next/image';
 
+// Define proper types for the database relations
 type Player = Database['public']['Tables']['players']['Row'];
-type Court = Database['public']['Tables']['courts']['Row'];
-type Booking = Database['public']['Tables']['bookings']['Row'];
+type BookingPlayer = Database['public']['Tables']['booking_players']['Row'] & {
+  players?: Player;
+};
+type BookingWithPlayers = Database['public']['Tables']['bookings']['Row'] & {
+  booking_players?: Pick<BookingPlayer, 'player_id'>[];
+};
+type FullBooking = Database['public']['Tables']['bookings']['Row'] & {
+  booking_players?: BookingPlayer[];
+};
 
 // Generate time slots from 7 AM to 10 PM
 const TIME_SLOTS = Array.from({ length: 16 }, (_, i) => {
@@ -61,45 +69,6 @@ export default function BookingForm() {
     ]);
   };
 
-  useEffect(() => {
-    loadBookingsForDate(date);
-  }, [date]);
-
-  useEffect(() => {
-    loadAllBookingDates();
-  }, []);
-
-  const loadAllBookingDates = async (targetDate: Date = new Date()) => {
-    try {
-      // Get the start and end of the month
-      const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
-
-      const { data: bookings, error } = await supabase
-        .from('bookings')
-        .select('booking_date')
-        .gte('booking_date', startDate.toISOString().split('T')[0])
-        .lte('booking_date', endDate.toISOString().split('T')[0])
-        .order('booking_date');
-
-      if (error) {
-        console.error('Error loading booking dates:', error);
-        return;
-      }
-
-      // Convert booking dates to Date objects
-      const dates = bookings
-        .map(booking => new Date(booking.booking_date))
-        .filter((date, index, self) => 
-          index === self.findIndex(d => d.toDateString() === date.toDateString())
-        );
-
-      setDatesWithBookings(dates);
-    } catch (error) {
-      console.error('Error loading booking dates:', error);
-    }
-  };
-
   const loadBookingsForDate = async (targetDate: Date) => {
     setIsLoading(true);
     try {
@@ -147,8 +116,8 @@ export default function BookingForm() {
       const numberOfHours = timeSlots.size;
 
       // Second pass: process players and calculate their fees
-      bookings.forEach(booking => {
-        booking.booking_players?.forEach((bp: any) => {
+      bookings.forEach((booking: FullBooking) => {
+        booking.booking_players?.forEach((bp: BookingPlayer) => {
           if (bp?.players) {
             const player = bp.players;
             // Only add player if not already in map (to avoid duplicates)
@@ -157,7 +126,7 @@ export default function BookingForm() {
                 id: player.id,
                 name: player.name,
                 courtFees: bp.amount_due,
-                paid: bp.has_paid
+                paid: bp.has_paid ?? false
               });
             }
           }
@@ -173,9 +142,7 @@ export default function BookingForm() {
         // Calculate total court cost
         const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
         // Calculate per player cost
-        let perPlayerCost = totalCourtCost / numberOfPlayers;
-        // Round up to nearest whole number
-        perPlayerCost = Math.ceil(perPlayerCost);
+        const perPlayerCost = Math.ceil(totalCourtCost / numberOfPlayers);
 
         // Update player fees
         uniquePlayers.forEach(player => {
@@ -211,6 +178,48 @@ export default function BookingForm() {
       resetForm();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Memoize loadBookingsForDate to fix the useEffect dependency warning
+  const memoizedLoadBookingsForDate = useCallback(loadBookingsForDate, []);
+
+  useEffect(() => {
+    memoizedLoadBookingsForDate(date);
+  }, [date, memoizedLoadBookingsForDate]);
+
+  useEffect(() => {
+    loadAllBookingDates();
+  }, []);
+
+  const loadAllBookingDates = async (targetDate: Date = new Date()) => {
+    try {
+      // Get the start and end of the month
+      const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('booking_date')
+        .gte('booking_date', startDate.toISOString().split('T')[0])
+        .lte('booking_date', endDate.toISOString().split('T')[0])
+        .order('booking_date');
+
+      if (error) {
+        console.error('Error loading booking dates:', error);
+        return;
+      }
+
+      // Convert booking dates to Date objects
+      const dates = bookings
+        .map(booking => new Date(booking.booking_date))
+        .filter((date, index, self) => 
+          index === self.findIndex(d => d.toDateString() === date.toDateString())
+        );
+
+      setDatesWithBookings(dates);
+    } catch (error) {
+      console.error('Error loading booking dates:', error);
     }
   };
 
@@ -265,12 +274,17 @@ export default function BookingForm() {
       // Sort time slots for consistent ordering
       const sortedTimeSlots = [...selectedTimeSlots].sort();
 
-      // Check if any of these courts are already booked for the selected time slots
+      // Get existing bookings for these time slots
       const { data: existingBookings, error: bookingCheckError } = await supabase
         .from('bookings')
-        .select('*')
+        .select(`
+          *,
+          booking_players (
+            player_id
+          )
+        `)
         .eq('booking_date', date.toISOString().split('T')[0])
-        .in('start_time', sortedTimeSlots);
+        .in('start_time', sortedTimeSlots.map(time => time + ':00')); // Add seconds to match DB format
 
       if (bookingCheckError) {
         console.error('Error checking existing bookings:', bookingCheckError);
@@ -278,99 +292,145 @@ export default function BookingForm() {
         return;
       }
 
-      // Check for conflicts
-      for (const booking of existingBookings || []) {
-        if (court1Active && booking.number_of_courts === 1) {
-          toast.error(`Court 1 is already booked at ${booking.start_time}`);
-          return;
-        }
-        if (court2Active && booking.number_of_courts === 2) {
-          toast.error(`Court 2 is already booked at ${booking.start_time}`);
-          return;
-        }
-      }
-
-      // Create bookings for each time slot
+      // Process each time slot
       for (const timeSlot of sortedTimeSlots) {
-        // Calculate total price for this booking
-        const numberOfCourts = court2Active ? 2 : 1;
-        const totalPrice = BASE_COURT_RATE * numberOfCourts;
+        const existingBooking = existingBookings?.find(
+          (booking: BookingWithPlayers) => booking.start_time.startsWith(timeSlot)
+        );
 
-        // Create booking
-        const { data: booking, error: bookingError } = await supabase
-          .from('bookings')
-          .insert([{
-            booking_date: date.toISOString().split('T')[0],
-            start_time: timeSlot,
-            number_of_courts: numberOfCourts,
-            duration_hours: 1,  // Each time slot is 1 hour
-            total_price: totalPrice
-          }])
-          .select()
-          .single();
+        if (existingBooking) {
+          // For existing bookings, just add the new players
+          for (const player of validPlayers) {
+            // Check if player is already in this booking
+            const isPlayerInBooking = existingBooking.booking_players?.some(
+              (bp: Pick<BookingPlayer, 'player_id'>) => bp.player_id === player.id
+            );
 
-        if (bookingError) {
-          console.error('Error creating booking:', bookingError);
-          toast.error('Error creating booking');
-          return;
-        }
+            if (!isPlayerInBooking) {
+              // Get or create player
+              let playerId = player.id;
+              if (!playerId) {
+                // Check if player already exists by name
+                const { data: existingPlayer } = await supabase
+                  .from('players')
+                  .select()
+                  .ilike('name', player.name.trim())
+                  .maybeSingle();
 
-        // For each player with a name, create or get player record and create booking_player record
-        for (const player of validPlayers) {
-          // First, check if player already exists
-          let { data: existingPlayer, error: playerError } = await supabase
-            .from('players')
+                if (existingPlayer) {
+                  playerId = existingPlayer.id;
+                } else {
+                  // Create new player
+                  const { data: newPlayer, error: createPlayerError } = await supabase
+                    .from('players')
+                    .insert([{ name: player.name.trim() }])
+                    .select()
+                    .single();
+
+                  if (createPlayerError) {
+                    console.error('Error creating player:', createPlayerError);
+                    toast.error('Error creating player');
+                    return;
+                  }
+                  playerId = newPlayer.id;
+                }
+              }
+
+              // Add player to existing booking
+              const { error: bookingPlayerError } = await supabase
+                .from('booking_players')
+                .insert([{
+                  booking_id: existingBooking.id,
+                  player_id: playerId,
+                  amount_due: player.courtFees || 0,
+                  has_paid: player.paid
+                }]);
+
+              if (bookingPlayerError) {
+                console.error('Error creating booking_player:', bookingPlayerError);
+                toast.error('Error linking player to booking');
+                return;
+              }
+            }
+          }
+        } else {
+          // Create new booking for this time slot
+          const numberOfCourts = (court1Active && court2Active) ? 2 : 1;
+          const courtNumber = court2Active ? 2 : 1;
+          const totalPrice = BASE_COURT_RATE * numberOfCourts;
+
+          // Create booking
+          const { data: newBooking, error: bookingError } = await supabase
+            .from('bookings')
+            .insert([{
+              booking_date: date.toISOString().split('T')[0],
+              start_time: timeSlot + ':00',
+              number_of_courts: courtNumber,
+              duration_hours: 1,
+              total_price: totalPrice
+            }])
             .select()
-            .ilike('name', player.name.trim())
-            .maybeSingle();
+            .single();
 
-          if (playerError) {
-            console.error('Error checking existing player:', playerError);
-            toast.error('Error processing player data');
+          if (bookingError) {
+            console.error('Error creating booking:', bookingError);
+            toast.error('Error creating booking');
             return;
           }
 
-          let playerId;
+          // Add all players to the new booking
+          for (const player of validPlayers) {
+            let playerId = player.id;
+            if (!playerId) {
+              // Check if player already exists
+              const { data: existingPlayer } = await supabase
+                .from('players')
+                .select()
+                .ilike('name', player.name.trim())
+                .maybeSingle();
 
-          if (existingPlayer) {
-            playerId = existingPlayer.id;
-          } else {
-            // Create new player
-            const { data: newPlayer, error: createPlayerError } = await supabase
-              .from('players')
-              .insert([{ name: player.name.trim() }])
-              .select()
-              .single();
+              if (existingPlayer) {
+                playerId = existingPlayer.id;
+              } else {
+                // Create new player
+                const { data: newPlayer, error: createPlayerError } = await supabase
+                  .from('players')
+                  .insert([{ name: player.name.trim() }])
+                  .select()
+                  .single();
 
-            if (createPlayerError) {
-              console.error('Error creating player:', createPlayerError);
-              toast.error('Error creating player');
-              return;
+                if (createPlayerError) {
+                  console.error('Error creating player:', createPlayerError);
+                  toast.error('Error creating player');
+                  return;
+                }
+                playerId = newPlayer.id;
+              }
             }
 
-            playerId = newPlayer.id;
-          }
+            // Create booking_player record
+            const { error: bookingPlayerError } = await supabase
+              .from('booking_players')
+              .insert([{
+                booking_id: newBooking.id,
+                player_id: playerId,
+                amount_due: player.courtFees || 0,
+                has_paid: player.paid
+              }]);
 
-          // Create booking_player record
-          const { error: bookingPlayerError } = await supabase
-            .from('booking_players')
-            .insert([{
-              booking_id: booking.id,
-              player_id: playerId,
-              amount_due: player.courtFees || 0,
-              has_paid: player.paid
-            }]);
-
-          if (bookingPlayerError) {
-            console.error('Error creating booking_player:', bookingPlayerError);
-            toast.error('Error linking player to booking');
-            return;
+            if (bookingPlayerError) {
+              console.error('Error creating booking_player:', bookingPlayerError);
+              toast.error('Error linking player to booking');
+              return;
+            }
           }
         }
       }
 
       toast.success('Booking saved successfully!');
       resetForm();
+      // Reload the bookings to show the updates
+      await loadBookingsForDate(date);
     } catch (error) {
       console.error('Error saving booking:', error);
       toast.error('Error saving booking');
@@ -435,29 +495,22 @@ export default function BookingForm() {
   };
 
   const calculateCourtFees = (players: Array<{name: string, courtFees: number | null, paid: boolean}>) => {
-    // Only count players with names
-    const validPlayers = players.filter(p => p.name.trim() !== '');
-    const numberOfPlayers = validPlayers.length;
-    
-    if (numberOfPlayers === 0) return players;
+    const activePlayers = players.filter(p => p.name.trim());
+    if (activePlayers.length === 0) return players;
 
-    // Count selected courts and hours
     const numberOfCourts = (court1Active ? 1 : 0) + (court2Active ? 1 : 0);
-    const numberOfHours = selectedTimeSlots.length;
-    
-    // Calculate total court cost
-    const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
-    
-    // Calculate per player cost with discount for more than 4 players
-    let perPlayerCost = totalCourtCost / numberOfPlayers;
-    
-    // Round up to nearest whole number
-    perPlayerCost = Math.ceil(perPlayerCost);
+    if (numberOfCourts === 0) return players;
 
-    // Update court fees for players with names
+    const numberOfHours = selectedTimeSlots.length;
+    if (numberOfHours === 0) return players;
+
+    const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
+    const perPlayerCost = Math.ceil(totalCourtCost / activePlayers.length);
+
+    // Update court fees for all players, setting fees only for active players
     return players.map(player => ({
       ...player,
-      courtFees: player.name.trim() !== '' ? perPlayerCost : null
+      courtFees: player.name.trim() ? perPlayerCost : null
     }));
   };
 

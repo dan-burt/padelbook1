@@ -3,7 +3,6 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/lib/database.types';
-import { Switch } from '@headlessui/react';
 import toast from 'react-hot-toast';
 import CourtGraphic from './CourtGraphic';
 import PlayerTable from './PlayerTable';
@@ -439,14 +438,6 @@ export default function BookingForm() {
     }
   };
 
-  const calculatePerPlayerCost = (totalPlayers: number) => {
-    if (totalPlayers === 0) return 0;
-    const numberOfCourts = (court1Active ? 1 : 0) + (court2Active ? 1 : 0);
-    const numberOfHours = selectedTimeSlots.length;
-    const totalCourtCost = BASE_COURT_RATE * numberOfCourts * numberOfHours;
-    return Math.ceil(totalCourtCost / totalPlayers);
-  };
-
   const handleRemovePlayer = async (playerId: string) => {
     setIsLoading(true);
     try {
@@ -486,12 +477,6 @@ export default function BookingForm() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handlePaidToggle = (index: number) => {
-    const newPlayers = [...players];
-    newPlayers[index] = { ...players[index], paid: !players[index].paid };
-    setPlayers(newPlayers);
   };
 
   const calculateCourtFees = (players: Array<{name: string, courtFees: number | null, paid: boolean}>) => {

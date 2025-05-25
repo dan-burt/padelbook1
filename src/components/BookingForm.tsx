@@ -16,11 +16,6 @@ type BookingPlayer = Database['public']['Tables']['booking_players']['Row'] & {
 type BookingWithPlayers = Database['public']['Tables']['bookings']['Row'] & {
   booking_players?: Pick<BookingPlayer, 'player_id'>[];
 };
-type FullBooking = Database['public']['Tables']['bookings']['Row'] & {
-  booking_players?: (Database['public']['Tables']['booking_players']['Row'] & {
-    players: Player | null;
-  })[];
-};
 
 // Generate time slots from 7 AM to 10 PM
 const TIME_SLOTS = Array.from({ length: 16 }, (_, i) => {

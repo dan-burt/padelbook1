@@ -11,13 +11,15 @@ import Image from 'next/image';
 // Define proper types for the database relations
 type Player = Database['public']['Tables']['players']['Row'];
 type BookingPlayer = Database['public']['Tables']['booking_players']['Row'] & {
-  players?: Player;
+  players: Player | null;
 };
 type BookingWithPlayers = Database['public']['Tables']['bookings']['Row'] & {
   booking_players?: Pick<BookingPlayer, 'player_id'>[];
 };
 type FullBooking = Database['public']['Tables']['bookings']['Row'] & {
-  booking_players?: BookingPlayer[];
+  booking_players?: (Database['public']['Tables']['booking_players']['Row'] & {
+    players: Player | null;
+  })[];
 };
 
 // Generate time slots from 7 AM to 10 PM
@@ -115,9 +117,15 @@ export default function BookingForm() {
       const numberOfHours = timeSlots.size;
 
       // Second pass: process players and calculate their fees
-      bookings.forEach((booking: FullBooking) => {
-        booking.booking_players?.forEach((bp: BookingPlayer) => {
-          if (bp?.players) {
+      bookings.forEach((booking: Database['public']['Tables']['bookings']['Row'] & {
+        booking_players?: Array<Database['public']['Tables']['booking_players']['Row'] & {
+          players: Database['public']['Tables']['players']['Row'] | null;
+        }>;
+      }) => {
+        booking.booking_players?.forEach((bp: Database['public']['Tables']['booking_players']['Row'] & {
+          players: Database['public']['Tables']['players']['Row'] | null;
+        }) => {
+          if (bp.players) {
             const player = bp.players;
             // Only add player if not already in map (to avoid duplicates)
             if (!playerMap.has(player.id)) {

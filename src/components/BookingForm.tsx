@@ -503,14 +503,14 @@ export default function BookingForm() {
   };
 
   return (
-    <div className="relative max-w-6xl mx-auto p-6" data-testid="booking-form-container">
+    <div className="relative max-w-6xl mx-auto p-2 sm:p-6" data-testid="booking-form-container">
       {/* Page Title */}
-      <h1 className="text-4xl font-bold text-center mb-8">Padel Tribe Court Booker</h1>
+      <h1 className="text-2xl sm:text-4xl font-bold text-center mb-4 sm:mb-8">Padel Tribe Court Booker</h1>
 
-      {/* Navigation Bars */}
+      {/* Navigation Bars - Hidden on mobile */}
       <button
         onClick={handlePrevDay}
-        className="fixed left-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
+        className="hidden sm:flex fixed left-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity items-center justify-center"
         style={{ clipPath: 'polygon(0 0, 50% 0, 100% 100%, 0 100%)' }}
         data-testid="prev-day-button"
       >
@@ -520,13 +520,29 @@ export default function BookingForm() {
 
       <button
         onClick={handleNextDay}
-        className="fixed right-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity flex items-center justify-center"
+        className="hidden sm:flex fixed right-0 top-0 bottom-0 w-24 bg-black bg-opacity-80 hover:bg-opacity-90 transition-opacity items-center justify-center"
         style={{ clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 0 100%)' }}
         data-testid="next-day-button"
       >
         <span className="sr-only">Next Day</span>
         <div className="w-8 h-8 border-r-4 border-t-4 border-white transform rotate-45 mr-8"></div>
       </button>
+
+      {/* Mobile Navigation */}
+      <div className="flex sm:hidden justify-between mb-4">
+        <button
+          onClick={handlePrevDay}
+          className="p-2 bg-black bg-opacity-80 hover:bg-opacity-90 rounded-lg"
+        >
+          <div className="w-6 h-6 border-l-4 border-t-4 border-white transform -rotate-45"></div>
+        </button>
+        <button
+          onClick={handleNextDay}
+          className="p-2 bg-black bg-opacity-80 hover:bg-opacity-90 rounded-lg"
+        >
+          <div className="w-6 h-6 border-r-4 border-t-4 border-white transform rotate-45"></div>
+        </button>
+      </div>
 
       {/* Loading Overlay */}
       {isLoading && (
@@ -535,43 +551,48 @@ export default function BookingForm() {
         </div>
       )}
 
-      <div className="flex gap-4 mb-8 items-start">
+      <div className="flex flex-col sm:flex-row gap-4 mb-4 sm:mb-8 items-center sm:items-start">
         {/* Logo */}
-        <div className="w-[150px] h-[150px] relative shrink-0">
+        <div className="w-[150px] h-[150px] sm:w-[200px] sm:h-[200px] relative shrink-0">
           <Image
             src="/logo.png"
             alt="Chapel-A Padel Tribe Logo"
             fill
-            sizes="150px"
+            sizes="(max-width: 640px) 150px, 200px"
             style={{ objectFit: 'contain' }}
             priority
           />
         </div>
 
-        <div className="border-2 border-black shrink-0" data-testid="date-picker-container">
-          <DatePicker
-            selected={date}
-            onChange={(newDate: Date | null) => newDate && setDate(newDate)}
-            onMonthChange={loadAllBookingDates}
-            inline
-            calendarClassName="!border-none"
-            dayClassName={date => 
-              datesWithBookings.some(bookingDate => 
-                bookingDate.toDateString() === date.toDateString()
-              ) ? "bg-blue-100" : ""
-            }
-            highlightDates={datesWithBookings}
-          />
+        <div className="w-full sm:w-auto" data-testid="date-picker-container">
+          <div className="border-2 border-black mx-auto" style={{ width: 'fit-content' }}>
+            <DatePicker
+              selected={date}
+              onChange={(newDate: Date | null) => newDate && setDate(newDate)}
+              onMonthChange={loadAllBookingDates}
+              inline
+              calendarClassName="!border-none"
+              wrapperClassName="w-full"
+              startDate={date}
+              calendarStartDay={1}
+              dayClassName={date => 
+                datesWithBookings.some(bookingDate => 
+                  bookingDate.toDateString() === date.toDateString()
+                ) ? "bg-blue-100" : ""
+              }
+              highlightDates={datesWithBookings}
+            />
+          </div>
         </div>
 
-        <div className="flex-1 border-2 border-black p-4 min-h-[320px]" data-testid="time-slots-container">
-          <h3 className="text-xl font-semibold mb-4">Available Time Slots</h3>
-          <div className="grid grid-cols-4 gap-2">
+        <div className="w-full sm:flex-1 border-2 border-black p-2 sm:p-4 min-h-[200px] sm:min-h-[320px]" data-testid="time-slots-container">
+          <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-4">Available Time Slots</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-2">
             {TIME_SLOTS.map((slot) => (
               <button
                 key={slot.value}
                 onClick={() => toggleTimeSlot(slot.value)}
-                className={`p-2 border-2 border-black rounded ${
+                className={`p-1 sm:p-2 border-2 border-black rounded text-sm sm:text-base ${
                   selectedTimeSlots.includes(slot.value) 
                     ? 'bg-blue-200' 
                     : 'hover:bg-gray-100'
@@ -585,7 +606,7 @@ export default function BookingForm() {
         </div>
       </div>
 
-      <div className="flex gap-4 mb-8 justify-center">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-8 items-center justify-center">
         <CourtGraphic
           isActive={court1Active}
           courtNumber={1}
@@ -608,10 +629,10 @@ export default function BookingForm() {
         isExistingBooking={hasExistingBooking}
       />
 
-      <div className="mt-8 flex justify-end">
+      <div className="mt-4 sm:mt-8 flex justify-end">
         <button
           onClick={handleSave}
-          className="px-8 py-4 bg-blue-600 text-white text-xl font-semibold rounded hover:bg-blue-700 transition-colors"
+          className="w-full sm:w-auto px-4 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white text-lg sm:text-xl font-semibold rounded hover:bg-blue-700 transition-colors"
           disabled={isLoading}
         >
           {isLoading ? 'Saving...' : 'Save Bookings'}

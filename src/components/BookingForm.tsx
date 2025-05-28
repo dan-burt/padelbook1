@@ -104,7 +104,14 @@ export default function BookingForm() {
       bookings.forEach(booking => {
         const time = booking.start_time.slice(0, 5); // Get HH:MM format
         timeSlots.add(time);
-        courts.add(booking.number_of_courts);
+        
+        // If number_of_courts is 2, both courts are booked
+        if (booking.number_of_courts === 2) {
+          courts.add(1);
+          courts.add(2);
+        } else {
+          courts.add(booking.number_of_courts);
+        }
       });
 
       // Calculate total number of courts and hours
@@ -200,9 +207,15 @@ export default function BookingForm() {
       const startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
       const endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
 
+      console.log('Fetching bookings for date range:', {
+        start: startDate.toISOString().split('T')[0],
+        end: endDate.toISOString().split('T')[0]
+      });
+
+      // Get all bookings for the month, regardless of number of courts
       const { data: bookings, error } = await supabase
         .from('bookings')
-        .select('booking_date')
+        .select('*')
         .gte('booking_date', startDate.toISOString().split('T')[0])
         .lte('booking_date', endDate.toISOString().split('T')[0])
         .order('booking_date');
@@ -212,14 +225,43 @@ export default function BookingForm() {
         return;
       }
 
-      // Convert booking dates to Date objects
-      const dates = bookings
-        .map(booking => new Date(booking.booking_date))
-        .filter((date, index, self) => 
-          index === self.findIndex(d => d.toDateString() === date.toDateString())
-        );
+      console.log('All bookings:', bookings?.map(b => ({
+        date: b.booking_date,
+        time: b.start_time,
+        courts: b.number_of_courts
+      })));
+
+      // Convert booking dates to Date objects and ensure uniqueness
+      const uniqueDates = new Set(
+        bookings
+          .filter(booking => booking.booking_date !== null)
+          .map(booking => booking.booking_date)
+      );
+
+      console.log('Unique dates:', Array.from(uniqueDates).sort());
+
+      const dates = Array.from(uniqueDates).map(date => new Date(date));
+
+      console.log('Final dates array:', dates.map(d => d.toISOString().split('T')[0]));
+      console.log('Setting datesWithBookings to:', dates);
 
       setDatesWithBookings(dates);
+
+      // Also update the calendar's highlighted dates
+      const calendarDates = document.querySelectorAll('.react-datepicker__day');
+      calendarDates.forEach(dateElement => {
+        const dateString = dateElement.getAttribute('aria-label');
+        if (dateString) {
+          const date = new Date(dateString);
+          const hasBooking = dates.some(bookingDate => 
+            bookingDate.toDateString() === date.toDateString()
+          );
+          if (hasBooking) {
+            dateElement.classList.add('bg-blue-100');
+          }
+        }
+      });
+
     } catch (error) {
       console.error('Error loading booking dates:', error);
     }
@@ -358,7 +400,14 @@ export default function BookingForm() {
         } else {
           // Create new booking for this time slot
           const numberOfCourts = (court1Active && court2Active) ? 2 : 1;
-          const courtNumber = court2Active ? 2 : 1;
+          console.log('Creating booking with courts:', {
+            court1Active,
+            court2Active,
+            numberOfCourts,
+            date: date.toISOString().split('T')[0],
+            timeSlot
+          });
+
           const totalPrice = BASE_COURT_RATE * numberOfCourts;
 
           // Create booking
@@ -367,12 +416,14 @@ export default function BookingForm() {
             .insert([{
               booking_date: date.toISOString().split('T')[0],
               start_time: timeSlot + ':00',
-              number_of_courts: courtNumber,
+              number_of_courts: numberOfCourts,
               duration_hours: 1,
               total_price: totalPrice
             }])
             .select()
             .single();
+
+          console.log('Booking created:', newBooking);
 
           if (bookingError) {
             console.error('Error creating booking:', bookingError);
@@ -571,15 +622,17 @@ export default function BookingForm() {
               onChange={(newDate: Date | null) => newDate && setDate(newDate)}
               onMonthChange={loadAllBookingDates}
               inline
-              calendarClassName="!border-none"
+              calendarClassName="!border-none [&_.react-datepicker__day--highlighted]:!bg-emerald-500 [&_.react-datepicker__day--highlighted]:!text-white [&_.react-datepicker__day--highlighted:hover]:!bg-emerald-600"
               wrapperClassName="w-full"
               startDate={date}
               calendarStartDay={1}
-              dayClassName={date => 
-                datesWithBookings.some(bookingDate => 
-                  bookingDate.toDateString() === date.toDateString()
-                ) ? "bg-blue-100" : ""
-              }
+              dayClassName={date => {
+                const dateStr = date.toISOString().split('T')[0];
+                const hasBooking = datesWithBookings.some(bookingDate => 
+                  bookingDate.toISOString().split('T')[0] === dateStr
+                );
+                return hasBooking ? "react-datepicker__day--highlighted" : "";
+              }}
               highlightDates={datesWithBookings}
             />
           </div>

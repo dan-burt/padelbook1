@@ -495,31 +495,61 @@ export default function BookingForm() {
   const handleRemovePlayer = async (playerId: string) => {
     setIsLoading(true);
     try {
+      const formattedDate = date.toISOString().split('T')[0];
+      console.log('Removing player from bookings on date:', formattedDate);
+
       // Get all bookings for this date
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id')
-        .eq('booking_date', date.toISOString().split('T')[0]);
+        .select('id, booking_date')
+        .eq('booking_date', formattedDate);
 
       if (bookingsError) {
+        console.error('Error fetching bookings:', bookingsError);
         throw bookingsError;
       }
 
       if (!bookings || bookings.length === 0) {
+        console.log('No bookings found for date:', formattedDate);
         return;
       }
 
+      console.log('Found bookings:', bookings);
       const bookingIds = bookings.map(b => b.id);
 
-      // Delete all booking_players entries for this player on this date
-      const { error: deleteError } = await supabase
+      // First, verify the booking_players records exist
+      const { data: existingRecords, error: checkError } = await supabase
         .from('booking_players')
-        .delete()
+        .select('*')
         .eq('player_id', playerId)
         .in('booking_id', bookingIds);
 
-      if (deleteError) {
-        throw deleteError;
+      if (checkError) {
+        console.error('Error checking booking_players:', checkError);
+        throw checkError;
+      }
+
+      console.log('Found booking_players records:', existingRecords);
+
+      if (!existingRecords || existingRecords.length === 0) {
+        console.log('No booking_players records found to delete');
+        return;
+      }
+
+      // Delete the booking_players entries one by one to ensure they're all deleted
+      for (const record of existingRecords) {
+        const { error: deleteError, data: deleteResult } = await supabase
+          .from('booking_players')
+          .delete()
+          .eq('id', record.id)
+          .select();
+
+        if (deleteError) {
+          console.error('Error deleting booking_player:', deleteError);
+          throw deleteError;
+        }
+
+        console.log('Deleted booking_player:', deleteResult);
       }
 
       // Reload the bookings to update the UI

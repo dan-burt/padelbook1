@@ -66,15 +66,22 @@ export default function PlayerTable({
   };
 
   const removePlayer = async (index: number) => {
-    const player = players[index];
-    
-    if (isExistingBooking && player.id && onRemoveExistingPlayer) {
-      // For existing bookings, call the remove handler
-      await onRemoveExistingPlayer(player.id);
-    } else {
-      // For new bookings, just filter out the player
-      const newPlayers = players.filter((_, i) => i !== index);
-      onPlayersChange(newPlayers);
+    try {
+      const player = players[index];
+      console.log('Removing player:', player);
+      
+      if (isExistingBooking && player.id && onRemoveExistingPlayer) {
+        // For existing bookings, call the remove handler
+        await onRemoveExistingPlayer(player.id);
+      } else {
+        // For new bookings, just filter out the player
+        console.log('Removing player from local state only');
+        const newPlayers = players.filter((_, i) => i !== index);
+        onPlayersChange(newPlayers);
+      }
+    } catch (error) {
+      console.error('Error in removePlayer:', error);
+      toast.error('Failed to remove player');
     }
   };
 

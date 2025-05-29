@@ -336,6 +336,10 @@ export default function BookingForm() {
         return;
       }
 
+      // Calculate the new number of courts
+      const numberOfCourts = (court1Active && court2Active) ? 2 : (court1Active || court2Active ? 1 : 0);
+      const totalPrice = BASE_COURT_RATE * numberOfCourts;
+
       // Process each time slot
       for (const timeSlot of sortedTimeSlots) {
         const existingBooking = existingBookings?.find(
@@ -343,7 +347,22 @@ export default function BookingForm() {
         );
 
         if (existingBooking) {
-          // For existing bookings, just add the new players
+          // Update the existing booking with new court count
+          const { error: updateError } = await supabase
+            .from('bookings')
+            .update({
+              number_of_courts: numberOfCourts,
+              total_price: totalPrice
+            })
+            .eq('id', existingBooking.id);
+
+          if (updateError) {
+            console.error('Error updating booking:', updateError);
+            toast.error('Error updating booking');
+            return;
+          }
+
+          // For existing bookings, just add any new players
           for (const player of validPlayers) {
             // Check if player is already in this booking
             const isPlayerInBooking = existingBooking.booking_players?.some(
@@ -399,7 +418,6 @@ export default function BookingForm() {
           }
         } else {
           // Create new booking for this time slot
-          const numberOfCourts = (court1Active && court2Active) ? 2 : 1;
           console.log('Creating booking with courts:', {
             court1Active,
             court2Active,
@@ -407,8 +425,6 @@ export default function BookingForm() {
             date: date.toISOString().split('T')[0],
             timeSlot
           });
-
-          const totalPrice = BASE_COURT_RATE * numberOfCourts;
 
           // Create booking
           const { data: newBooking, error: bookingError } = await supabase
@@ -481,7 +497,10 @@ export default function BookingForm() {
       }
 
       toast.success('Booking saved successfully!');
-      resetForm();
+      // Don't reset the form for existing bookings
+      if (!hasExistingBooking) {
+        resetForm();
+      }
       // Reload the bookings to show the updates
       await loadBookingsForDate(date);
     } catch (error) {
@@ -581,6 +600,82 @@ export default function BookingForm() {
       ...player,
       courtFees: player.name.trim() ? perPlayerCost : null
     }));
+  };
+
+  const handleDeleteBooking = async () => {
+    setIsLoading(true);
+    try {
+      const formattedDate = date.toISOString().split('T')[0];
+      console.log('Attempting to delete bookings for date:', formattedDate);
+      
+      // Get all bookings for this date
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id, booking_date, start_time')
+        .eq('booking_date', formattedDate)
+        .in('start_time', selectedTimeSlots.map(time => time + ':00'));
+
+      if (bookingsError) {
+        console.error('Error fetching bookings:', bookingsError);
+        throw bookingsError;
+      }
+
+      if (!bookings || bookings.length === 0) {
+        console.log('No bookings found to delete');
+        return;
+      }
+
+      console.log('Found bookings to delete:', bookings);
+      const bookingIds = bookings.map(b => b.id);
+
+      // Delete all booking_players records first (foreign key constraint)
+      const { data: deletedPlayers, error: bookingPlayersError } = await supabase
+        .from('booking_players')
+        .delete()
+        .in('booking_id', bookingIds)
+        .select();
+
+      if (bookingPlayersError) {
+        console.error('Error deleting booking_players:', bookingPlayersError);
+        throw bookingPlayersError;
+      }
+
+      console.log('Successfully deleted booking_players:', deletedPlayers);
+
+      // Then delete the bookings
+      const { data: deletedBookings, error: deleteError } = await supabase
+        .from('bookings')
+        .delete()
+        .in('id', bookingIds)
+        .select();
+
+      if (deleteError) {
+        console.error('Error deleting bookings:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('Successfully deleted bookings:', deletedBookings);
+
+      toast.success('Booking deleted successfully');
+      
+      // Reset form first
+      resetForm();
+      
+      // Then reload bookings with a slight delay to ensure DB consistency
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const { data: checkBookings } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('booking_date', formattedDate);
+      console.log('Remaining bookings after deletion:', checkBookings);
+      
+      await loadBookingsForDate(date);
+    } catch (error) {
+      console.error('Error deleting booking:', error);
+      toast.error('Failed to delete booking');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -710,6 +805,7 @@ export default function BookingForm() {
         }}
         onRemoveExistingPlayer={handleRemovePlayer}
         isExistingBooking={hasExistingBooking}
+        onDeleteBooking={handleDeleteBooking}
       />
 
       <div className="mt-4 sm:mt-8 flex justify-end">
@@ -721,6 +817,18 @@ export default function BookingForm() {
           {isLoading ? 'Saving...' : 'Save Bookings'}
         </button>
       </div>
+
+      {hasExistingBooking && (
+        <div className="mt-4 sm:mt-8 flex justify-end">
+          <button
+            onClick={handleDeleteBooking}
+            className="w-full sm:w-auto px-4 sm:px-8 py-3 sm:py-4 bg-red-600 text-white text-lg sm:text-xl font-semibold rounded hover:bg-red-700 transition-colors"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Deleting...' : 'Delete Booking'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

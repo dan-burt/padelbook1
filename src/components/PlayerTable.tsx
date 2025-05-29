@@ -16,13 +16,15 @@ interface PlayerTableProps {
   onPlayersChange: (players: Player[]) => void;
   onRemoveExistingPlayer?: (playerId: string) => Promise<void>;
   isExistingBooking?: boolean;
+  onDeleteBooking?: () => Promise<void>;
 }
 
 export default function PlayerTable({ 
   players, 
   onPlayersChange, 
   onRemoveExistingPlayer,
-  isExistingBooking = false 
+  isExistingBooking = false,
+  onDeleteBooking
 }: PlayerTableProps) {
   const handleNameChange = (index: number, name: string) => {
     const newPlayers = [...players];
@@ -90,14 +92,25 @@ export default function PlayerTable({
       <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
         <div className="flex justify-between items-center">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Players</h2>
-          <button
-            onClick={addPlayer}
-            className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            data-testid="add-player-button"
-          >
-            <PlusIcon className="h-4 w-4 mr-1" />
-            Add Player
-          </button>
+          <div className="flex gap-2">
+            {isExistingBooking && onDeleteBooking && (
+              <button
+                onClick={onDeleteBooking}
+                className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                data-testid="delete-booking-button"
+              >
+                Delete Booking
+              </button>
+            )}
+            <button
+              onClick={addPlayer}
+              className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              data-testid="add-player-button"
+            >
+              <PlusIcon className="h-4 w-4 mr-1" />
+              Add Player
+            </button>
+          </div>
         </div>
       </div>
       
